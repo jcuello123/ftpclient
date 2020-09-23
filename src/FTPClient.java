@@ -1,11 +1,8 @@
 
 import java.io.BufferedReader;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
-import java.net.ServerSocket;
 import java.net.Socket;
 
 /*
@@ -26,9 +23,9 @@ public class FTPClient {
     private BufferedReader stdIn;
     private boolean logged_in;
     private int data_channel;
-    private Socket data_socket;
-    private PrintWriter data_out;
-    private BufferedReader data_in;     
+    Socket data_socket;
+    PrintWriter data_out;
+    BufferedReader data_in;
 
     public FTPClient(String server) {
         try {
@@ -46,18 +43,16 @@ public class FTPClient {
         }
     }
     
-    private void useDataChannel(String request) throws IOException{
+    private void useDataChannel() throws IOException{
         data_socket = new Socket(server, data_channel);
         data_out = new PrintWriter(data_socket.getOutputStream(), true);
-        data_in = new BufferedReader(new InputStreamReader(data_socket.getInputStream()));
-        
-        data_out.println(request);
-        getServerResponse(data_in);
-        closeDataChannel();
+        data_in = new BufferedReader(new InputStreamReader(data_socket.getInputStream()));    
     }
     
     private void closeDataChannel() throws IOException{
         data_socket.close();
+        data_out.close();
+        data_in.close();
     }
     
     private String getServerResponse(BufferedReader server) throws IOException{
@@ -72,25 +67,24 @@ public class FTPClient {
         
         System.out.println("Enter username: ");
         user = stdIn.readLine();
-        sendServerRequest("user " + user);
+        sendServerRequest("user " + user, out);
         getServerResponse(in);
         
-        System.out.println("Enter password: ");
         pass = stdIn.readLine();
-        sendServerRequest("pass " + pass);
+        sendServerRequest("pass " + pass, out);
         
         String status = getServerResponse(in).split(" ")[0];
         if (status.equals("230")){
-            sendServerRequest("PASV");
+            sendServerRequest("PASV", out);
             String port = getServerResponse(in);
             data_channel = parsePort(port);
-
+            System.out.println("data_channel: " + data_channel);
             setIsLoggedIn(true);
         }
     }
     
-    private void sendServerRequest(String request){
-        out.println(request);
+    private void sendServerRequest(String request, PrintWriter writer){
+        writer.println(request);
     }
             
     public boolean isLoggedIn(){
@@ -102,15 +96,32 @@ public class FTPClient {
     }
     
     public void getUserInput() throws IOException{
+        if (isLoggedIn()){
+            useDataChannel();
+        }
+        
         while (isLoggedIn()){
             System.out.print("myftp> ");
             String user_input = stdIn.readLine();
-            useDataChannel(user_input);
+            
+            sendServerRequest(user_input, out);
+            getServerResponse(in);
+            if (user_input.equals("LIST")){
+                getServerResponse(data_in);
+                getServerResponse(data_in);
+                getServerResponse(data_in);
+                getServerResponse(data_in);
+                getServerResponse(in);
+            }
             
             if (user_input.equals("quit")){
                 setIsLoggedIn(false);
             }
         }   
+        
+        s.close();
+        out.close();
+        in.close();
     }
     
     private int parsePort(String response){
