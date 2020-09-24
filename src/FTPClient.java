@@ -28,6 +28,7 @@ public class FTPClient {
     private boolean isDataChannelOpen;
     
     public FTPClient(String server) {
+        //connect to specified server
         try {
             this.server = server;
             logged_in = false;
@@ -76,24 +77,20 @@ public class FTPClient {
         
         System.out.println("Enter username: ");
         user = stdIn.readLine();
-        sendServerRequest("user " + user, out);
+        sendServerRequest("user " + user);
         getServerResponse(in);
         
         pass = stdIn.readLine();
-        sendServerRequest("pass " + pass, out);
+        sendServerRequest("pass " + pass);
         
         String status = getServerResponse(in).split(" ")[0];
-        if (status.equals("230")){
-            sendServerRequest("PASV", out);
-            String port = getServerResponse(in);
-            data_channel = parsePort(port);
-            System.out.println("data_channel: " + data_channel);
+        if (status.equals("230")){ //user logged in
             setIsLoggedIn(true);
         }
     }
     
-    private void sendServerRequest(String request, PrintWriter writer){
-        writer.println(request);
+    private void sendServerRequest(String request){
+        out.println(request);
     }
             
     public boolean isLoggedIn(){
@@ -112,7 +109,7 @@ public class FTPClient {
         }
     }
     
-    private int parsePort(String response){
+    private int parsePort(String response){ // parse incoming response: "227 Entering Passive Mode (131,94,130,139,165,93)"
         int num1 = Integer.parseInt(response.split(" ")[4].split(",")[4]);
         int num2 = Integer.parseInt(response.split(" ")[4].split(",")[5].replace(").", ""));
         return num1 * 256 + num2;
@@ -120,11 +117,12 @@ public class FTPClient {
     
     private void handleCommand(String command) throws IOException{
         if (isLoggedIn() && !isDataChannelOpen && (command.equals("ls") || command.split(" ")[0].equals("get") || command.split(" ")[0].equals("put"))){
+            setPassiveMode();
             openDataChannel();
         }
         
         if (command.equals("ls")){
-            sendServerRequest("LIST", out);
+            sendServerRequest("LIST");
             getServerResponse(in);
             getServerResponse(data_in);
             getServerResponse(data_in);
@@ -137,39 +135,53 @@ public class FTPClient {
             getServerResponse(data_in);
             getServerResponse(data_in);
             getServerResponse(in);
+            closeDataChannel();
         }
         
         else if (command.split(" ")[0].equals("get")){
-            sendServerRequest("RETR " + command.split(" ")[1], out);
-            getServerResponse(in);
-            getServerResponse(in);
+            sendServerRequest("RETR " + command.split(" ")[1]);
+            String status = getServerResponse(in);
+            if (!status.split(" ")[0].equals("550")){
+                getServerResponse(in);
+            }
+            closeDataChannel();
         }
         
         else if (command.split(" ")[0].equals("put")){
-            sendServerRequest("APPE " + command.split(" ")[1], out);
+            sendServerRequest("APPE " + command.split(" ")[1]);
             getServerResponse(in);
+            closeDataChannel();
         }
         
         else if (command.split(" ")[0].equals("delete")){
-            sendServerRequest("DELE " + command.split(" ")[1], out);
+            sendServerRequest("DELE " + command.split(" ")[1]);
             getServerResponse(in);
         }
         
         else if (command.split(" ")[0].equals("cd")){
-            sendServerRequest("CWD " + command.split(" ")[1], out);
+            sendServerRequest("CWD " + command.split(" ")[1]);
             getServerResponse(in);
         }
         
         else if (command.equals("quit")){
-            sendServerRequest("quit", out);
+            sendServerRequest("quit");
             getServerResponse(in);
             setIsLoggedIn(false);
             closeAll();
         }
         
         else {
-            sendServerRequest(command, out);
+            sendServerRequest(command);
             getServerResponse(in);
         }
+    }
+    
+    private void setPassiveMode() throws IOException{
+        sendServerRequest("PASV");
+        String port = getServerResponse(in);
+        if (port.split(" ")[0].equals("226") || port.split(" ")[0].equals("250")){ //if buffer has delayed response from server, get the new response
+            port = getServerResponse(in);
+        }
+        data_channel = parsePort(port);
     }
 }
