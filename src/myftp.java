@@ -5,7 +5,6 @@ class myftp{
         String server_name = args[0];
         FTPClient ftp = new FTPClient(server_name);
         ftp.login();
-        
         ftp.getUserInput();
     }
 }

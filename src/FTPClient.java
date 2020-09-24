@@ -24,7 +24,6 @@ public class FTPClient {
     private boolean logged_in;
     private int data_channel;
     private Socket data_socket;
-    private PrintWriter data_out;
     private BufferedReader data_in;
     private boolean isDataChannelOpen;
     
@@ -52,7 +51,15 @@ public class FTPClient {
     
     private void closeDataChannel() throws IOException{
         data_socket.close();
-        data_out.close();
+        data_in.close();
+        isDataChannelOpen = false;
+    }
+    
+    private void closeAll() throws IOException{
+        s.close();
+        out.close();
+        in.close();
+        data_socket.close();
         data_in.close();
         isDataChannelOpen = false;
     }
@@ -100,14 +107,9 @@ public class FTPClient {
     public void getUserInput() throws IOException{
         while (isLoggedIn()){
             System.out.print("myftp> ");
-            String user_input = stdIn.readLine();
-            
+            String user_input = stdIn.readLine();  
             handleCommand(user_input);
-        }   
-        
-        s.close();
-        out.close();
-        in.close();
+        }
     }
     
     private int parsePort(String response){
@@ -117,7 +119,7 @@ public class FTPClient {
     }
     
     private void handleCommand(String command) throws IOException{
-        if (isLoggedIn() && !isDataChannelOpen && (command.equals("ls") || command.split(" ")[0].equals("get") || command.split(" ")[0].equals("put") || command.split(" ")[0].equals("delete"))){
+        if (isLoggedIn() && !isDataChannelOpen && (command.equals("ls") || command.split(" ")[0].equals("get") || command.split(" ")[0].equals("put"))){
             openDataChannel();
         }
         
@@ -162,6 +164,7 @@ public class FTPClient {
             sendServerRequest("quit", out);
             getServerResponse(in);
             setIsLoggedIn(false);
+            closeAll();
         }
         
         else {
